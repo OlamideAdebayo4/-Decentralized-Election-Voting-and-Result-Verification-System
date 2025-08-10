@@ -10,6 +10,9 @@
 (define-constant err-election-not-ended (err u108))
 (define-constant err-proposal-not-found (err u109))
 (define-constant err-already-voted-proposal (err u110))
+(define-constant err-circular-delegation (err u111))
+(define-constant err-self-delegation (err u112))
+(define-constant err-no-delegation (err u113))
 
 (define-data-var election-counter uint u0)
 (define-data-var proposal-counter uint u0)
@@ -69,6 +72,20 @@
   bool
 )
 
+(define-map voter-delegations
+  principal
+  {
+    delegate: principal,
+    delegation-block: uint,
+    is-active: bool
+  }
+)
+
+(define-map delegation-counts
+  principal
+  uint
+)
+
 (define-public (register-voter)
   (let 
     (
@@ -113,6 +130,7 @@
       (election (unwrap! (map-get? elections election-id) err-not-found))
       (voter-info (unwrap! (map-get? voter-tokens tx-sender) err-unauthorized))
       (vote-hash (sha256 (concat (concat (unwrap-panic (to-consensus-buff? tx-sender)) (unwrap-panic (to-consensus-buff? election-id))) (unwrap-panic (to-consensus-buff? candidate)))))
+      (vote-power (+ u1 (default-to u0 (map-get? delegation-counts tx-sender))))
     )
     (asserts! (get is-verified voter-info) err-unauthorized)
     (asserts! (get is-active election) err-election-not-active)
@@ -131,11 +149,74 @@
         (current-votes (default-to u0 (map-get? election-results {election-id: election-id, candidate: candidate})))
         (updated-elections-voted (unwrap-panic (as-max-len? (append (get elections-voted voter-info) election-id) u20)))
       )
-      (map-set election-results {election-id: election-id, candidate: candidate} (+ current-votes u1))
+      (map-set election-results {election-id: election-id, candidate: candidate} (+ current-votes vote-power))
       (map-set voter-tokens tx-sender (merge voter-info {elections-voted: updated-elections-voted}))
-      (map-set elections election-id (merge election {total-votes: (+ (get total-votes election) u1)}))
+      (map-set elections election-id (merge election {total-votes: (+ (get total-votes election) vote-power)}))
       (ok true)
     )
+  )
+)
+
+(define-public (delegate-vote (delegate principal))
+  (let 
+    (
+      (delegator-info (unwrap! (map-get? voter-tokens tx-sender) err-unauthorized))
+      (delegate-info (unwrap! (map-get? voter-tokens delegate) err-unauthorized))
+      (existing-delegation (map-get? voter-delegations tx-sender))
+      (delegate-has-delegation (map-get? voter-delegations delegate))
+    )
+    (asserts! (get is-verified delegator-info) err-unauthorized)
+    (asserts! (get is-verified delegate-info) err-unauthorized)
+    (asserts! (not (is-eq tx-sender delegate)) err-self-delegation)
+    (asserts! (or (is-none delegate-has-delegation) (not (get is-active (unwrap-panic delegate-has-delegation)))) err-circular-delegation)
+    
+    (match existing-delegation
+      delegation-data 
+        (if (get is-active delegation-data)
+          (begin
+            (map-set delegation-counts (get delegate delegation-data) 
+              (- (default-to u0 (map-get? delegation-counts (get delegate delegation-data))) u1))
+            (map-set voter-delegations tx-sender {
+              delegate: delegate,
+              delegation-block: stacks-block-height,
+              is-active: true
+            })
+            (map-set delegation-counts delegate (+ (default-to u0 (map-get? delegation-counts delegate)) u1))
+            (ok true)
+          )
+          (begin
+            (map-set voter-delegations tx-sender {
+              delegate: delegate,
+              delegation-block: stacks-block-height,
+              is-active: true
+            })
+            (map-set delegation-counts delegate (+ (default-to u0 (map-get? delegation-counts delegate)) u1))
+            (ok true)
+          )
+        )
+      (begin
+        (map-set voter-delegations tx-sender {
+          delegate: delegate,
+          delegation-block: stacks-block-height,
+          is-active: true
+        })
+        (map-set delegation-counts delegate (+ (default-to u0 (map-get? delegation-counts delegate)) u1))
+        (ok true)
+      )
+    )
+  )
+)
+
+(define-public (revoke-delegation)
+  (let 
+    (
+      (delegation-data (unwrap! (map-get? voter-delegations tx-sender) err-no-delegation))
+    )
+    (asserts! (get is-active delegation-data) err-no-delegation)
+    (map-set delegation-counts (get delegate delegation-data) 
+      (- (default-to u0 (map-get? delegation-counts (get delegate delegation-data))) u1))
+    (map-set voter-delegations tx-sender (merge delegation-data {is-active: false}))
+    (ok true)
   )
 )
 
@@ -268,3 +349,17 @@
     )
   )
 )
+
+(define-read-only (get-delegation (voter principal))
+  (map-get? voter-delegations voter)
+)
+
+(define-read-only (get-delegation-count (delegate principal))
+  (default-to u0 (map-get? delegation-counts delegate))
+)
+
+(define-read-only (get-voting-power (voter principal))
+  (+ u1 (get-delegation-count voter))
+)
+
+
