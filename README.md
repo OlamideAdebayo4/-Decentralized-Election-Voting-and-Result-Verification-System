@@ -1,6 +1,4 @@
-# 🗳️ Decentralized Election Voting System
-
-> 🔐 A transparent, tamper-proof voting and result verification system built on Stacks blockchain using Clarity smart contracts.
+A transparent, tamper-proof voting and result verification system built on Stacks blockchain using Clarity smart contracts.
 
 ## 🌟 Features
 
