@@ -388,4 +388,25 @@
   (+ u1 (get-delegation-count voter))
 )
 
+(define-private (build-results-list (candidate (string-ascii 50)) (acc {results: (list 10 {candidate: (string-ascii 50), votes: uint}), election-id: uint}))
+  (let
+    (
+      (votes (get-election-results (get election-id acc) candidate))
+      (new-result {candidate: candidate, votes: votes})
+      (current-results (get results acc))
+    )
+    {results: (unwrap-panic (as-max-len? (append current-results new-result) u10)), election-id: (get election-id acc)}
+  )
+)
+
+(define-read-only (get-all-election-results (election-id uint))
+  (let
+    (
+      (election (unwrap! (map-get? elections election-id) err-not-found))
+      (candidates (get candidates election))
+    )
+    (ok (get results (fold build-results-list candidates {results: (list), election-id: election-id})))
+  )
+)
+
 

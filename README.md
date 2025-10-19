@@ -101,6 +101,7 @@ Participate in DAO governance:
 |----------|-------------|
 | `get-election` | Get election details |
 | `get-election-results` | Get vote count for candidate |
+| `get-all-election-results` | Get aggregated vote counts for all candidates in an election |
 | `get-voter-info` | Get voter registration info |
 | `get-vote-proof` | Get cryptographic vote proof |
 | `verify-vote-integrity` | Verify vote authenticity |
