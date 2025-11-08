@@ -14,6 +14,7 @@
 (define-constant err-self-delegation (err u112))
 (define-constant err-no-delegation (err u113))
 (define-constant err-not-voted (err u114))
+(define-constant err-election-already-ended (err u115))
 
 (define-data-var election-counter uint u0)
 (define-data-var proposal-counter uint u0)
@@ -84,6 +85,11 @@
 
 (define-map delegation-counts
   principal
+  uint
+)
+
+(define-map election-extensions
+  uint
   uint
 )
 
@@ -290,27 +296,43 @@
 )
 
 (define-public (retract-vote (election-id uint))
- (let
-   (
-     (election (unwrap! (map-get? elections election-id) err-not-found))
-     (voter-info (unwrap! (map-get? voter-tokens tx-sender) err-unauthorized))
-     (vote-record (unwrap! (map-get? election-voters {election-id: election-id, voter: tx-sender}) err-not-voted))
-     (vote-power (+ u1 (default-to u0 (map-get? delegation-counts tx-sender))))
-   )
-   (asserts! (get is-verified voter-info) err-unauthorized)
-   (asserts! (get is-active election) err-election-not-active)
-   (asserts! (<= stacks-block-height (get end-block election)) err-election-ended)
-   (let
-     (
-       (candidate (get candidate vote-record))
-       (current-votes (unwrap-panic (map-get? election-results {election-id: election-id, candidate: candidate})))
-     )
-     (map-delete election-voters {election-id: election-id, voter: tx-sender})
-     (map-set election-results {election-id: election-id, candidate: candidate} (- current-votes vote-power))
-     (map-set elections election-id (merge election {total-votes: (- (get total-votes election) vote-power)}))
-     (ok true)
-   )
- )
+  (let
+    (
+      (election (unwrap! (map-get? elections election-id) err-not-found))
+      (voter-info (unwrap! (map-get? voter-tokens tx-sender) err-unauthorized))
+      (vote-record (unwrap! (map-get? election-voters {election-id: election-id, voter: tx-sender}) err-not-voted))
+      (vote-power (+ u1 (default-to u0 (map-get? delegation-counts tx-sender))))
+    )
+    (asserts! (get is-verified voter-info) err-unauthorized)
+    (asserts! (get is-active election) err-election-not-active)
+    (asserts! (<= stacks-block-height (get end-block election)) err-election-ended)
+    (let
+      (
+        (candidate (get candidate vote-record))
+        (current-votes (unwrap-panic (map-get? election-results {election-id: election-id, candidate: candidate})))
+      )
+      (map-delete election-voters {election-id: election-id, voter: tx-sender})
+      (map-set election-results {election-id: election-id, candidate: candidate} (- current-votes vote-power))
+      (map-set elections election-id (merge election {total-votes: (- (get total-votes election) vote-power)}))
+      (ok true)
+    )
+  )
+)
+
+(define-public (extend-election (election-id uint) (additional-blocks uint))
+  (let
+    (
+      (election (unwrap! (map-get? elections election-id) err-not-found))
+      (current-extensions (default-to u0 (map-get? election-extensions election-id)))
+    )
+    (asserts! (is-eq tx-sender (get creator election)) err-unauthorized)
+    (asserts! (get is-active election) err-election-not-active)
+    (asserts! (<= stacks-block-height (get end-block election)) err-election-already-ended)
+    (asserts! (< current-extensions u3) err-election-already-ended)
+    (map-set elections election-id (merge election {end-block: (+ (get end-block election) additional-blocks)}))
+    (map-set election-extensions election-id (+ current-extensions u1))
+    (ok true)
+  )
 )
 
 (define-read-only (get-election (election-id uint))
@@ -382,6 +404,10 @@
 
 (define-read-only (get-delegation-count (delegate principal))
   (default-to u0 (map-get? delegation-counts delegate))
+)
+
+(define-read-only (get-election-extensions (election-id uint))
+  (default-to u0 (map-get? election-extensions election-id))
 )
 
 (define-read-only (get-voting-power (voter principal))

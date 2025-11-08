@@ -7,6 +7,7 @@ A transparent, tamper-proof voting and result verification system built on Stack
 - 📊 **Real-Time Auditing** - Live vote counting and transparent results
 - 🔍 **Vote Verification** - Zero-knowledge proof integration for anonymity
 - 🏛️ **DAO Governance** - Post-election proposal system for community decisions
+- ⏰ **Election Extension** - Flexible election duration with controlled extensions
 
 ## 🚀 Quick Start
 
@@ -81,6 +82,14 @@ Participate in DAO governance:
 (contract-call? .election-system vote-proposal u1 true)  ;; true = yes, false = no
 ```
 
+### 7️⃣ Extend Election
+
+Extend an active election if needed (up to 3 extensions allowed):
+
+```clarity
+(contract-call? .election-system extend-election u1 u500)  ;; Extend election 1 by 500 blocks
+```
+
 ## 🔧 Available Functions
 
 ### 📝 Public Functions
@@ -94,6 +103,7 @@ Participate in DAO governance:
 | `create-proposal` | Create governance proposal |
 | `vote-proposal` | Vote on governance proposal |
 | `finalize-proposal` | Finalize proposal voting |
+| `extend-election` | Extend active election duration |
 
 ### 👀 Read-Only Functions
 
@@ -106,12 +116,13 @@ Participate in DAO governance:
 | `get-vote-proof` | Get cryptographic vote proof |
 | `verify-vote-integrity` | Verify vote authenticity |
 | `get-election-winner` | Get election winner |
+| `get-election-extensions` | Get number of extensions for an election |
 
 ## 🛡️ Security Features
 
 - 🔐 **Cryptographic Vote Hashing** - Each vote generates a unique hash for verification
 - 🚫 **Double-Voting Prevention** - Smart contract prevents multiple votes per election
-- ⏰ **Time-Bound Elections** - Elections have defined start and end blocks
+- ⏰ **Time-Bound Elections** - Elections have defined start and end blocks with extension capabilities
 - 👤 **Identity Verification** - Only registered voters can participate
 - 🔍 **Transparent Auditing** - All votes and results are publicly verifiable
 
@@ -140,9 +151,14 @@ clarinet test
    - Declare winner
 
 4. **Governance Phase** 🏛️
-   - Create proposals
-   - Community voting
-   - Implement decisions
+    - Create proposals
+    - Community voting
+    - Implement decisions
+
+5. **Extension Phase** ⏰ (Optional)
+    - Extend election duration if needed
+    - Maximum 3 extensions per election
+    - Maintain voting integrity
 
 ## 🔗 Contract Architecture
 
@@ -150,6 +166,9 @@ clarinet test
 Election System
 ├── Voter Registration
 ├── Election Management
+│   ├── Creation & Configuration
+│   ├── Duration Management
+│   └── Extension Controls
 ├── Vote Casting & Verification
 ├── Result Tabulation
 └── DAO Governance
